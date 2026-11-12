@@ -1,0 +1,20 @@
+استقرار AIhub Prompt Studio
+===========================
+۱) Worker نسخهٔ ۴ (پوشهٔ license-server) را در Cloudflare Deploy کن (خط prompt-studio اضافه شده است).
+۲) همهٔ فایل‌های این پوشه را در «ریشهٔ دامنهٔ» HTTPS آپلود کن (index.html کنار پوشهٔ app و sw.js).
+   ⚠ برای APK/TWA حتماً ریشهٔ دامنه (https://example.com/) لازم است؛ زیرمسیر مثل /repo/ کار نمی‌کند.
+۳) license-config.js: کلید عمومی و آدرس Worker از قبل گذاشته شده. برای قفل کامل تا فعال‌سازی، mode را "locked" کن.
+   (این فایل در Service Worker کش می‌شود؛ تغییرش به کاربران نصب‌شده فقط بعد از به‌روزرسانی برنامه می‌رسد.)
+۴) در کلیدساز «Prompt Studio» را انتخاب و کد بساز (PROMPT-XXXX-XXXX-XXXX).
+
+ساخت APK با PWABuilder
+----------------------
+الف) آدرس نهایی را در pwabuilder.com بزن و Package for Android را انتخاب کن (Package ID مثلاً com.aihub.promptstudio).
+ب) فایل امضا (keystore) را نگه دار و گم نکن؛ بدون آن نمی‌توانی نسخهٔ بعدی را روی همان APK منتشر کنی.
+ج) SHA-256 fingerprint کلید امضا را بگیر (PWABuilder در ZIP فایل assetlinks.json آماده می‌دهد؛ یا
+   keytool -list -v -keystore <file> ).
+د) فایل deploy/assetlinks.template.json را کپی کن، package_name و fingerprint را پر کن و روی هاست در مسیر
+   /.well-known/assetlinks.json قرار بده (بدون ریدایرکت، Content-Type: application/json).
+ه) با آدرس https://DOMAIN/.well-known/assetlinks.json در مرورگر چک کن که باز می‌شود.
+   اگر APK با نوار آدرس کروم باز شد، یعنی assetlinks یا fingerprint درست نیست.
+و) اگر Play App Signing استفاده می‌کنی، fingerprint کلید Play (Console ← App integrity) را هم اضافه کن.
