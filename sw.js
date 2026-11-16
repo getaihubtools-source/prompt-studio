@@ -1,1 +1,113 @@
-if(!self.define){let e,i={};const c=(c,n)=>(c=new URL(c+".js",n).href,i[c]||new Promise(i=>{if("document"in self){const e=document.createElement("script");e.src=c,e.onload=i,document.head.appendChild(e)}else e=c,importScripts(c),i()}).then(()=>{let e=i[c];if(!e)throw new Error(`Module ${c} didn’t register its module`);return e}));self.define=(n,o)=>{const r=e||("document"in self?document.currentScript.src:"")||location.href;if(i[r])return;let s={};const b=e=>c(e,r),f={module:{uri:r},exports:s,require:b};i[r]=Promise.all(n.map(e=>f[e]||b(e))).then(e=>(o(...e),s))}}define(["./workbox-d1213528"],function(e){"use strict";self.addEventListener("message",e=>{e.data&&"SKIP_WAITING"===e.data.type&&self.skipWaiting()}),e.precacheAndRoute([{url:"manifest.webmanifest",revision:"652facc12fa25578d1fba80d9d7f05fe"},{url:"license-config.js",revision:"60318bd0473c5b2f078d912b03252eb5"},{url:"index.html",revision:"d0d4415346ac84c4b475b6513bf59a36"},{url:"icon-maskable-512.png",revision:"6db4ffa373c2c351e88ec2589c466356"},{url:"icon-512.png",revision:"76d6c9a34f5fb236b018cabf349aeb83"},{url:"icon-192.png",revision:"1600be5049b56f10ebfa67b6ee06c560"},{url:"favicon.svg",revision:"3a059743a4aff1f350f151bc8d7973a3"},{url:"apple-touch-icon.png",revision:"8d9208585d0da5a19e3aec2525f90806"},{url:"app/index.html",revision:"294818f07d830cda89865166aa75ef26"},{url:"apple-touch-icon.png",revision:"8d9208585d0da5a19e3aec2525f90806"},{url:"favicon.svg",revision:"3a059743a4aff1f350f151bc8d7973a3"},{url:"icon-192.png",revision:"1600be5049b56f10ebfa67b6ee06c560"},{url:"icon-512.png",revision:"76d6c9a34f5fb236b018cabf349aeb83"},{url:"icon-maskable-512.png",revision:"6db4ffa373c2c351e88ec2589c466356"},{url:"manifest.webmanifest",revision:"652facc12fa25578d1fba80d9d7f05fe"}],{}),e.cleanupOutdatedCaches()});
+/* Prompt Studio — Service Worker (بدون Workbox)
+   BUILD را فقط tools/stamp.js تغییر می‌دهد؛ دستی ویرایش نکن.
+   استراتژی:
+     • HTML، license-config.js و manifest  ← network-first (همیشه revalidate؛ اگر ۳٫۵ ثانیه جواب نیامد، نسخهٔ کش‌شده)
+     • آیکن‌ها/تصاویر/فونت            ← cache-first
+     • version.json و درخواست‌های بیرون از دامنه (سرور لایسنس، API) ← دست نمی‌خورند
+   نصب «اتمی»: اگر حتی یک فایل دریافت نشود، SW جدید نصب نمی‌شود و نسخهٔ قبلی سالم می‌ماند.
+   فعال‌سازی SW جدید فقط با پیام SKIP_WAITING (برنامه وقتی ویرایش ذخیره‌نشده‌ای نیست می‌فرستد). */
+const BUILD = /*B*/"0552825a9bb4"/*E*/;
+const CACHE = "ps-" + BUILD;
+const NET_TIMEOUT = 3500;
+const PRECACHE = [
+  "./",
+  "index.html",
+  "app/",
+  "app/index.html",
+  "license-config.js",
+  "manifest.webmanifest",
+  "favicon.svg",
+  "apple-touch-icon.png",
+  "icon-192.png",
+  "icon-512.png",
+  "icon-maskable-512.png"
+];
+const NETWORK_FIRST = /(\.html|\/license-config\.js|\.webmanifest)$/;
+
+const scope = self.registration.scope;
+function keyFor(u) {
+  const url = new URL(u, scope);
+  let p = url.pathname;
+  if (p.endsWith("/")) p += "index.html";
+  return url.origin + p;
+}
+
+self.addEventListener("install", (event) => {
+  event.waitUntil((async () => {
+    const cache = await caches.open(CACHE);
+    const seen = new Set();
+    for (const u of PRECACHE) {
+      const key = keyFor(u);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const res = await fetch(new Request(new URL(u, scope).href, { cache: "reload", credentials: "same-origin" }));
+      if (!res.ok) throw new Error("precache failed: " + u + " " + res.status);
+      await cache.put(key, res);
+    }
+  })());
+  // عمداً skipWaiting() اینجا نیست؛ برنامه تصمیم می‌گیرد کی امن است.
+});
+
+self.addEventListener("activate", (event) => {
+  event.waitUntil((async () => {
+    const names = await caches.keys();
+    await Promise.all(names.filter((n) => n !== CACHE).map((n) => caches.delete(n)));
+    await self.clients.claim();
+  })());
+});
+
+self.addEventListener("message", (event) => {
+  const d = event.data || {};
+  if (d.type === "SKIP_WAITING") self.skipWaiting();
+  else if (d.type === "GET_BUILD" && event.ports && event.ports[0]) event.ports[0].postMessage(BUILD);
+});
+
+function clean(res) {
+  // پاسخ ریدایرکت‌شده برای navigation مجاز نیست؛ پرچم redirected را حذف می‌کنیم.
+  if (!res.redirected) return res;
+  return res.blob().then((b) => new Response(b, { status: res.status, statusText: res.statusText, headers: res.headers }));
+}
+
+async function networkFirst(event, req, key) {
+  const cache = await caches.open(CACHE);
+  const net = fetch(req.url, { cache: "no-cache", credentials: "same-origin" }).then((res) => {
+    if (res.ok) cache.put(key, res.clone());
+    return res;
+  });
+  event.waitUntil(net.catch(() => {}));
+  const timeout = new Promise((r) => setTimeout(() => r(null), NET_TIMEOUT));
+  try {
+    const first = await Promise.race([net, timeout]);
+    if (first && first.status < 500) return clean(first);
+    const hit = await cache.match(key);
+    if (hit) return hit;
+    return clean(await net);
+  } catch (err) {
+    const hit = await cache.match(key);
+    if (hit) return hit;
+    throw err;
+  }
+}
+
+async function cacheFirst(req, key) {
+  const cache = await caches.open(CACHE);
+  const hit = await cache.match(key);
+  if (hit) return hit;
+  const res = await fetch(req);
+  if (res.ok && res.type === "basic") cache.put(key, res.clone());
+  return res;
+}
+
+self.addEventListener("fetch", (event) => {
+  const req = event.request;
+  if (req.method !== "GET") return;
+  const url = new URL(req.url);
+  if (url.origin !== self.location.origin) return;
+  if (url.pathname.endsWith("/version.json") || url.pathname.indexOf("/.well-known/") !== -1) return;
+  const key = keyFor(req.url);
+  if (req.mode === "navigate" || NETWORK_FIRST.test(key)) {
+    event.respondWith(networkFirst(event, req, key));
+  } else {
+    event.respondWith(cacheFirst(req, key));
+  }
+});

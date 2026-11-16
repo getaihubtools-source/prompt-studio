@@ -1,0 +1,25 @@
+# کپی کن به: .github/workflows/pages.yml  (Settings → Pages → Source: GitHub Actions)
+# هر push روی main: BUILD را stamp می‌کند و سایت را منتشر می‌کند. دیگر لازم نیست دستی stamp کنی.
+name: Deploy Pages
+on:
+  push: { branches: [main] }
+  workflow_dispatch:
+    inputs:
+      force: { description: "اجبار آپدیت برای همهٔ کاربران", type: boolean, default: false }
+      notes: { description: "یادداشت نسخه", type: string, default: "" }
+permissions: { contents: read, pages: write, id-token: write }
+concurrency: { group: pages, cancel-in-progress: true }
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: { name: github-pages, url: "${{ steps.d.outputs.page_url }}" }
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 20 }
+      - run: node tools/stamp.js ${{ inputs.force && '--force' || '' }} --notes "${{ inputs.notes }}"
+      - run: touch .nojekyll
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: . }
+      - id: d
+        uses: actions/deploy-pages@v4

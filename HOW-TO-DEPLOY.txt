@@ -18,3 +18,8 @@
 ه) با آدرس https://DOMAIN/.well-known/assetlinks.json در مرورگر چک کن که باز می‌شود.
    اگر APK با نوار آدرس کروم باز شد، یعنی assetlinks یا fingerprint درست نیست.
 و) اگر Play App Signing استفاده می‌کنی، fingerprint کلید Play (Console ← App integrity) را هم اضافه کن.
+
+
+========== آپدیت خودکار (مهم) ==========
+قبل از هر انتشار:   node tools/stamp.js            (یا --force --notes "متن")
+سپس push کن. جزئیات: docs/UPDATE-SYSTEM.md   |  CI خودکار: deploy/pages.yml
